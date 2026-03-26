@@ -1,0 +1,81 @@
+{{- if .Values.global.routing.api.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    {{- include "multipll.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- with .Values.global.routing.api.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - {{ include "multipll.apiDomain" . }}
+      secretName: {{ .Values.global.routing.tlsSecretName }}
+  rules:
+    - host: {{ include "multipll.apiDomain" . }}
+      http:
+        paths:
+          # ── auth: /v1/auth/*, /v1/decisions/*, /v1/admin/*, /callback ──
+          {{- if index .Values "auth" "enabled" }}
+          - path: /v1/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-auth
+                port:
+                  number: 8000
+          - path: /callback
+            pathType: Exact
+            backend:
+              service:
+                name: {{ .Release.Name }}-auth
+                port:
+                  number: 8000
+          - path: /v1/decisions
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-auth
+                port:
+                  number: 8000
+          - path: /v1/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-auth
+                port:
+                  number: 8000
+          {{- end }}
+          # ── coa: /api/v1/coa/*, /api/v1/org/* ─────────────────────────
+          {{- if index .Values "coa" "enabled" }}
+          - path: /api/v1/coa
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-coa
+                port:
+                  number: 8000
+          - path: /api/v1/org
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-coa
+                port:
+                  number: 8000
+          {{- end }}
+          # ── kpi: /v1/orgs/* ────────────────────────────────────────────
+          {{- if index .Values "kpi" "enabled" }}
+          - path: /v1/orgs
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-kpi
+                port:
+                  number: 8000
+          {{- end }}
+{{- end }}

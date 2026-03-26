@@ -1,0 +1,226 @@
+name: Deploy Dev Environment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'chart/**'
+      - 'values/**'
+      - 'env.json'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Deploy mode'
+        required: true
+        default: 'umbrella'
+        type: choice
+        options:
+          - umbrella
+          - single-service
+      service:
+        description: 'Service to deploy (only for single-service mode)'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - auth
+          - coa
+          - dashboard-admin
+          - dashboard-cfo
+          - kpi
+      chart_version_override:
+        description: 'Override chart version for single-service deploy'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # ── Umbrella chart deploy (all services in one helm release) ───────────────
+  deploy-umbrella:
+    name: Deploy Multipll Platform (Umbrella)
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'umbrella')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout env-dev
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: rg-multipll-dev
+          cluster-name: aks-multipll-dev
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Login to ACR for Helm
+        run: |
+          az acr login --name multipllacrdev1
+          echo "Logged in to ACR for OCI chart pulls"
+
+      - name: Helm dependency update
+        working-directory: chart
+        run: |
+          helm dependency update .
+          echo "Dependencies downloaded:"
+          ls -la charts/
+
+      - name: Helm deploy umbrella chart
+        working-directory: chart
+        run: |
+          helm upgrade --install multipll . \
+            -f values.yaml \
+            -f values-dev.yaml \
+            --namespace multipll-dev \
+            --create-namespace \
+            --wait \
+            --timeout 10m
+          echo "Umbrella chart deployed successfully"
+
+      - name: Verify deployment
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n multipll-dev
+          echo ""
+          echo "=== Services ==="
+          kubectl get svc -n multipll-dev
+          echo ""
+          echo "=== Ingresses ==="
+          kubectl get ingress -n multipll-dev
+          echo ""
+          echo "=== Helm Release ==="
+          helm list -n multipll-dev
+
+  # ── Single service deploy (from OCI registry) ─────────────────────────────
+  read-manifest:
+    name: Read Release Manifest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'single-service'
+    runs-on: ubuntu-latest
+    outputs:
+      auth_version: ${{ steps.parse.outputs.auth_version }}
+      auth_oci: ${{ steps.parse.outputs.auth_oci }}
+      coa_version: ${{ steps.parse.outputs.coa_version }}
+      coa_oci: ${{ steps.parse.outputs.coa_oci }}
+      dashboard_admin_version: ${{ steps.parse.outputs.dashboard_admin_version }}
+      dashboard_admin_oci: ${{ steps.parse.outputs.dashboard_admin_oci }}
+      dashboard_cfo_version: ${{ steps.parse.outputs.dashboard_cfo_version }}
+      dashboard_cfo_oci: ${{ steps.parse.outputs.dashboard_cfo_oci }}
+      kpi_version: ${{ steps.parse.outputs.kpi_version }}
+      kpi_oci: ${{ steps.parse.outputs.kpi_oci }}
+    steps:
+      - name: Checkout release-manifests
+        uses: actions/checkout@v4
+        with:
+          repository: multipll/release-manifests
+          ref: main
+          token: ${{ secrets.DEVOPS_BASE_PAT }}
+          path: release-manifests
+
+      - name: Parse helm-charts.json
+        id: parse
+        run: |
+          MANIFEST="release-manifests/helm-charts.json"
+          for service in auth coa dashboard-admin dashboard-cfo kpi; do
+            output_key=$(echo "$service" | tr '-' '_')
+            version=$(jq -r ".charts[\"$service\"].latest_stable" "$MANIFEST")
+            oci_ref=$(jq -r ".charts[\"$service\"].oci_ref" "$MANIFEST")
+            echo "${output_key}_version=$version" >> $GITHUB_OUTPUT
+            echo "${output_key}_oci=$oci_ref" >> $GITHUB_OUTPUT
+            echo "$service: $oci_ref:$version"
+          done
+
+  deploy-auth:
+    name: Deploy auth
+    needs: read-manifest
+    if: github.event.inputs.mode == 'single-service' && github.event.inputs.service == 'auth'
+    uses: multipll/devops-base/.github/workflows/helm-deploy.yml@main
+    with:
+      cluster_name: "aks-multipll-dev"
+      resource_group: "rg-multipll-dev"
+      helm_chart_path: "${{ needs.read-manifest.outputs.auth_oci }}:${{ github.event.inputs.chart_version_override != '' && github.event.inputs.chart_version_override || needs.read-manifest.outputs.auth_version }}"
+      release_name: "multipll-auth"
+      namespace: "multipll-dev"
+      values_files: "values/auth.yaml"
+      set_values: "image.tag=${{ needs.read-manifest.outputs.auth_version }}"
+      verify_deployment: true
+      rollback_on_failure: true
+    secrets: inherit
+
+  deploy-coa:
+    name: Deploy coa
+    needs: read-manifest
+    if: github.event.inputs.mode == 'single-service' && github.event.inputs.service == 'coa'
+    uses: multipll/devops-base/.github/workflows/helm-deploy.yml@main
+    with:
+      cluster_name: "aks-multipll-dev"
+      resource_group: "rg-multipll-dev"
+      helm_chart_path: "${{ needs.read-manifest.outputs.coa_oci }}:${{ github.event.inputs.chart_version_override != '' && github.event.inputs.chart_version_override || needs.read-manifest.outputs.coa_version }}"
+      release_name: "multipll-coa"
+      namespace: "multipll-dev"
+      values_files: "values/coa.yaml"
+      set_values: "image.tag=${{ needs.read-manifest.outputs.coa_version }}"
+      verify_deployment: true
+      rollback_on_failure: true
+    secrets: inherit
+
+  deploy-dashboard-admin:
+    name: Deploy dashboard-admin
+    needs: read-manifest
+    if: github.event.inputs.mode == 'single-service' && github.event.inputs.service == 'dashboard-admin'
+    uses: multipll/devops-base/.github/workflows/helm-deploy.yml@main
+    with:
+      cluster_name: "aks-multipll-dev"
+      resource_group: "rg-multipll-dev"
+      helm_chart_path: "${{ needs.read-manifest.outputs.dashboard_admin_oci }}:${{ github.event.inputs.chart_version_override != '' && github.event.inputs.chart_version_override || needs.read-manifest.outputs.dashboard_admin_version }}"
+      release_name: "multipll-dashboard-admin"
+      namespace: "multipll-dev"
+      values_files: "values/dashboard-admin.yaml"
+      set_values: "image.tag=${{ needs.read-manifest.outputs.dashboard_admin_version }}"
+      verify_deployment: true
+      rollback_on_failure: true
+    secrets: inherit
+
+  deploy-dashboard-cfo:
+    name: Deploy dashboard-cfo
+    needs: read-manifest
+    if: github.event.inputs.mode == 'single-service' && github.event.inputs.service == 'dashboard-cfo'
+    uses: multipll/devops-base/.github/workflows/helm-deploy.yml@main
+    with:
+      cluster_name: "aks-multipll-dev"
+      resource_group: "rg-multipll-dev"
+      helm_chart_path: "${{ needs.read-manifest.outputs.dashboard_cfo_oci }}:${{ github.event.inputs.chart_version_override != '' && github.event.inputs.chart_version_override || needs.read-manifest.outputs.dashboard_cfo_version }}"
+      release_name: "multipll-dashboard-cfo"
+      namespace: "multipll-dev"
+      values_files: "values/dashboard-cfo.yaml"
+      set_values: "image.tag=${{ needs.read-manifest.outputs.dashboard_cfo_version }}"
+      verify_deployment: true
+      rollback_on_failure: true
+    secrets: inherit
+
+  deploy-kpi:
+    name: Deploy kpi
+    needs: read-manifest
+    if: github.event.inputs.mode == 'single-service' && github.event.inputs.service == 'kpi'
+    uses: multipll/devops-base/.github/workflows/helm-deploy.yml@main
+    with:
+      cluster_name: "aks-multipll-dev"
+      resource_group: "rg-multipll-dev"
+      helm_chart_path: "${{ needs.read-manifest.outputs.kpi_oci }}:${{ github.event.inputs.chart_version_override != '' && github.event.inputs.chart_version_override || needs.read-manifest.outputs.kpi_version }}"
+      release_name: "multipll-kpi"
+      namespace: "multipll-dev"
+      values_files: "values/kpi.yaml"
+      set_values: "image.tag=${{ needs.read-manifest.outputs.kpi_version }}"
+      verify_deployment: true
+      rollback_on_failure: true
+    secrets: inherit

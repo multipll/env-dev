@@ -1,0 +1,24 @@
+# Dev environment overrides for auth service
+image:
+  repository: multipllacrdev1.azurecr.io/auth
+  pullPolicy: IfNotPresent
+
+ingress:
+  subdomain:
+    branchName: "main"
+    state: "stable"
+    baseDomain: "dev-internal-api.multipll.com"
+
+deployment:
+  replicas: 1
+
+env:
+  ENVIRONMENT: "dev"
+  DEBUG: "true"
+  LOG_LEVEL: "DEBUG"
+  ENTRA_CALLBACK_REDIRECT_URI: "https://auth-main-stable.dev-internal-api.multipll.com/callback"
+  POST_LOGIN_REDIRECT_ALLOWED_SUFFIXES: "dev-internal-api.multipll.com,localhost"
+  AUTH_COOKIE_DOMAIN: ".dev-internal-api.multipll.com"
+
+keyvault:
+  name: "multipll-keyvault-dev"

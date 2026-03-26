@@ -1,0 +1,22 @@
+# Dev environment overrides for coa service
+image:
+  repository: multipllacrdev1.azurecr.io/coa
+  pullPolicy: IfNotPresent
+
+ingress:
+  subdomain:
+    branchName: "main"
+    state: "stable"
+    baseDomain: "dev-internal-api.multipll.com"
+
+deployment:
+  replicas: 1
+
+env:
+  ENVIRONMENT: "dev"
+  DEBUG: "true"
+  LOG_LEVEL: "DEBUG"
+  AUTH_URL: "https://auth-main-stable.dev-internal-api.multipll.com/v1/auth/me"
+
+keyvault:
+  name: "multipll-keyvault-dev"

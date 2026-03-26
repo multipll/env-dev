@@ -1,0 +1,29 @@
+# Multipll platform — default values
+# Each top-level key maps to a subchart by name.
+# These defaults are merged with each subchart's own values.yaml.
+
+# ── Global routing (umbrella-level ingresses) ──────────────────────────────
+global:
+  routing:
+    baseDomain: "dev-internal-api.multipll.com"
+    apiPrefix: "api"           # prod: api, dev: api-dev, staging: api-staging
+    uiPrefix: "ui"             # prod: ui, dev: ui-dev, staging: ui-staging
+    tlsSecretName: "tls-secret"
+    api:
+      enabled: true
+      annotations: {}
+    ui:
+      enabled: true
+      annotations: {}
+
+# ── Service toggles ────────────────────────────────────────────────────────
+auth:
+  enabled: true
+coa:
+  enabled: true
+dashboard-admin:
+  enabled: true
+dashboard-cfo:
+  enabled: true
+kpi:
+  enabled: true

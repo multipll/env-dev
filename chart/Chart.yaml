@@ -1,0 +1,27 @@
+apiVersion: v2
+name: multipll
+description: Multipll platform umbrella chart — deploys all services
+version: 1.0.0
+type: application
+
+dependencies:
+  - name: auth
+    version: "1.0.5"
+    repository: "oci://multipllacrdev1.azurecr.io/helm"
+    condition: auth.enabled
+  - name: coa
+    version: "1.0.1"
+    repository: "oci://multipllacrdev1.azurecr.io/helm"
+    condition: coa.enabled
+  - name: dashboard-admin
+    version: "0.1.1"
+    repository: "oci://multipllacrdev1.azurecr.io/helm"
+    condition: dashboard-admin.enabled
+  - name: dashboard-cfo
+    version: "1.0.1"
+    repository: "oci://multipllacrdev1.azurecr.io/helm"
+    condition: dashboard-cfo.enabled
+  - name: kpi
+    version: "1.0.1"
+    repository: "oci://multipllacrdev1.azurecr.io/helm"
+    condition: kpi.enabled

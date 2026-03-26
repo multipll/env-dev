@@ -1,0 +1,107 @@
+# Multipll platform — dev environment overrides
+# Subchart values are nested under the chart name.
+
+# ── Global routing ──────────────────────────────────────────────────────────
+global:
+  routing:
+    baseDomain: "dev-internal-api.multipll.com"
+    apiPrefix: "api-dev"
+    uiPrefix: "ui-dev"
+    tlsSecretName: "tls-secret"
+
+# ── auth ─────────────────────────────────────────────────────────────────────
+auth:
+  enabled: true
+  ingress:
+    enabled: false
+  image:
+    repository: multipllacrdev1.azurecr.io/auth
+    pullPolicy: IfNotPresent
+  deployment:
+    replicas: 1
+  env:
+    ENVIRONMENT: "dev"
+    DEBUG: "true"
+    LOG_LEVEL: "DEBUG"
+    ENTRA_CALLBACK_REDIRECT_URI: "https://api-dev.dev-internal-api.multipll.com/callback"
+    POST_LOGIN_REDIRECT_ALLOWED_SUFFIXES: "dev-internal-api.multipll.com,localhost"
+    AUTH_COOKIE_DOMAIN: ".dev-internal-api.multipll.com"
+  keyvault:
+    name: "multipll-keyvault-dev"
+
+# ── coa ──────────────────────────────────────────────────────────────────────
+coa:
+  enabled: true
+  ingress:
+    enabled: false
+  image:
+    repository: multipllacrdev1.azurecr.io/coa
+    pullPolicy: IfNotPresent
+  deployment:
+    replicas: 1
+  env:
+    ENVIRONMENT: "dev"
+    DEBUG: "true"
+    LOG_LEVEL: "DEBUG"
+    AUTH_URL: "https://api-dev.dev-internal-api.multipll.com/v1/auth/me"
+  keyvault:
+    name: "multipll-keyvault-dev"
+
+# ── dashboard-admin ──────────────────────────────────────────────────────────
+dashboard-admin:
+  enabled: true
+  ingress:
+    enabled: false
+  image:
+    repository: multipllacrdev1.azurecr.io/dashboard-admin
+    pullPolicy: IfNotPresent
+  deployment:
+    replicas: 1
+  env:
+    NODE_ENV: "development"
+  envConfig:
+    AUTH_API_URL: "https://api-dev.dev-internal-api.multipll.com"
+    API_BASE_URL: "https://api-dev.dev-internal-api.multipll.com"
+    ENTRA_CALLBACK_REDIRECT_URI: "https://api-dev.dev-internal-api.multipll.com/callback"
+    COA_API_URL: "https://api-dev.dev-internal-api.multipll.com"
+  keyvault:
+    name: "multipll-keyvault-dev"
+
+# ── dashboard-cfo ────────────────────────────────────────────────────────────
+dashboard-cfo:
+  enabled: true
+  ingress:
+    enabled: false
+  image:
+    repository: multipllacrdev1.azurecr.io/dashboard-cfo
+    pullPolicy: IfNotPresent
+  deployment:
+    replicas: 1
+  env:
+    NODE_ENV: "development"
+  envConfig:
+    AUTH_API_URL: "https://api-dev.dev-internal-api.multipll.com"
+    API_BASE_URL: "https://api-dev.dev-internal-api.multipll.com"
+    ENTRA_CALLBACK_REDIRECT_URI: "https://api-dev.dev-internal-api.multipll.com/callback"
+    KPI_API_URL: "https://api-dev.dev-internal-api.multipll.com"
+    COA_API_URL: "https://api-dev.dev-internal-api.multipll.com"
+  keyvault:
+    name: "multipll-keyvault-dev"
+
+# ── kpi ──────────────────────────────────────────────────────────────────────
+kpi:
+  enabled: true
+  ingress:
+    enabled: false
+  image:
+    repository: multipllacrdev1.azurecr.io/kpi
+    pullPolicy: IfNotPresent
+  deployment:
+    replicas: 1
+  env:
+    ENVIRONMENT: "dev"
+    DEBUG: "true"
+    LOG_LEVEL: "DEBUG"
+    AUTH_URL: "https://api-dev.dev-internal-api.multipll.com/v1/auth/me"
+  keyvault:
+    name: "multipll-keyvault-dev"
